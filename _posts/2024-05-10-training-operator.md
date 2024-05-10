@@ -42,7 +42,23 @@ Training operator定义了一套模型训练相关的CR，以及用于管理CR�
 
 补充：
 
-- Training operator可以和其他k8s工具一起使用：例如结合Volcano调度器，扩展调度能力。
+- Training Operator可以和其他k8s工具一起使用：例如结合Volcano调度器，扩展调度能力。
+
+    在Training Operator的配置文件中指定gang-scheduler名称
+    ```yaml
+    ...
+        spec:
+            containers:
+            - args:
+                - --gang-scheduling=volcano # 指定scheduler
+                - -alsologtostderr
+                - --lock-namespace=mpi-operator
+                image: mpioperator/mpi-operator:0.4.0
+                name: mpi-operator
+    ...
+    ```
+
+    **Note**: Training Operator和Volcano都是通过`PodGroup`资源实现调度。Operator会自动创建job的`PodGroup`。
 
 ## 参考文档
 

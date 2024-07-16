@@ -16,10 +16,13 @@ PVC一般由开发人员定义所需的Volume的规格，而PV由运维人员来
 
 - StorageClass
 
-  StorageClass是PV的模板，它定义了PV的规格、存储类型、存储供应商、存储供应商的配置等。接着由k8s的Dynamic Provisioner根据StorageClass自动创建PV。
+  StorageClass是PV的模板，也由运维人员创建。它定义了PV的**规格、存储类型**以及创建这种PV所需的**存储插件（CSI）**等配置。
 
-  在PVC的spec.storageClassName字段声明要使用的StorageClass名字。
+  - **存储插件**实现了PV的动态创建、删除、扩容等操作。接着由k8s的**Dynamic Provisioner**根据StorageClass自动创建PV。
 
+  - 在PVC的`spec.storageClassName`字段声明要使用的StorageClass名字。
+
+  - 但SC并不是专为Dynamic Provisioner服务的，也可以用于静态PV的绑定。例如设置`storageClassName=manual`，此时集群里并没有一个名为`manual`的StorageClass，但是可以手动创建一个PV，然后将PVC的`storageClassName`设置为`manual`，这样PVC就会绑定到这个PV上。这属于**Static Provisioning**。但注意的是，在k8s继续PV和PVC绑定时，仍要满足`storageClassName`字段是一致的才能绑定成功。
 
 ![image](k8s-storage.png)
 
@@ -31,8 +34,21 @@ PVC一般由开发人员定义所需的Volume的规格，而PV由运维人员来
 
 ### 1. 使用CSI存储插件的Volume持久化创建、挂载流程
 
-Csi存储插件的Volume持久化创建、挂载流程
-![image](csi-storage-workflow.png)
+1. 简要流程：
+
+> 用户提交请求创建pod，Kubernetes发现这个pod声明使用了PVC，那就靠PersistentVolumeController帮它找一个PV配对。
+>
+> 没有现成的PV，就去找对应的StorageClass，帮它新创建一个PV，然后和PVC完成绑定。
+>
+> 新创建的PV，还只是一个API 对象，需要经过“两阶段处理”变成宿主机上的“持久化Volume”才真正有用：
+> 第一阶段由运行在master上的AttachDetachController负责，力这个PV完成 Attach 操作，为宿主机挂载远程磁盘；
+> 第二阶段是运行在每个节点上kubelet组件的内部，把第一步attach的远程磁盘 mount 到宿主机目录。这个控制循环叫VolumeManagerReconciler，运行在独立的Goroutine，不会阻塞kubelet主循环。
+>
+> 完成这两步，PV对应的“持久化 Volume”就准备好了，POD可以正常启动，将“持久化Volume”挂载在容器内指定的路径。
+
+
+2. Csi存储插件的Volume持久化创建、挂载的详细流程
+   ![image](csi-storage-workflow.png)
 
 <details>
   <summary>PlantUML源码</summary>
